@@ -21,13 +21,24 @@
 docker login reg.saitron.net -u <本体用户名> --password-stdin
 
 # 构建镜像并写入项目信息 annotations（合并成一行）
+# 关键：必须使用 docker buildx build + --builder multiarch + --output type=registry,oci-mediatypes=true
+# 否则默认生成的 Docker 格式 manifest 不支持顶层 annotations，Harbor 后台属性总览看不到项目信息
 # 注意：这里使用 OCI annotation（--annotation），不要使用 --label，Harbor API 顶层 annotations 才能展示项目信息
 # 注意：加 --provenance=false --sbom=false，避免生成 OCI index + attestation 导致 Harbor API 顶层 artifact 读不到 annotation
-docker build --push --provenance=false --sbom=false --annotation "project_name=<项目名称>" --annotation "project_author=<项目作者>" --annotation "project_description=<项目描述>" --annotation "project_name_en=<英文项目名称>" -t reg.saitron.net/<本体用户名>/<英文项目名称>:<TAG> <项目根目录>/<英文项目名称>
+docker buildx build --builder multiarch --push --provenance=false --sbom=false --output type=registry,oci-mediatypes=true --annotation "project_name=<项目名称>" --annotation "project_author=<项目作者>" --annotation "project_description=<项目描述>" --annotation "project_name_en=<英文项目名称>" -t reg.saitron.net/<本体用户名>/<英文项目名称>:<TAG> <项目根目录>/<英文项目名称>
 # 使用 --push 后无需再单独执行 docker push
 ```
 
 其中 `<TAG>` 为每次推送前强制 `+0.1` 后的版本号，例如 `0.1`。
+
+### 关键参数说明
+
+| 参数 | 作用 |
+|------|------|
+| `--builder multiarch` | 使用支持 OCI 的 buildkit（v0.31+），默认 orbstack driver（v0.29）不输出 OCI manifest |
+| `--output type=registry,oci-mediatypes=true` | 强制输出 OCI 格式 manifest，annotations 才能出现在顶层 |
+| `--provenance=false --sbom=false` | 防止生成 OCI index 包裹层，确保 annotations 在 Harbor 可读的顶层 |
+| `--annotation` | 写入 OCI annotation，不要用 `--label`（label 只在 config 内，Harbor 读不到） |
 
 ## 目录结构
 

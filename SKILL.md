@@ -199,13 +199,19 @@ printf '%s\n' "$BODY_PASSWORD" | docker login reg.saitron.net -u "$BODY_USERNAME
    - `project_description`
    - `project_name_en`
 
-   使用 `docker build --push`，并加上 `--provenance=false --sbom=false`（否则会生成 OCI index + attestation，annotation 落在内层 manifest 上，Harbor API 顶层 artifact 读不到），把 annotation 合并成**一行**：
+   必须使用 `docker buildx build` 并指定 `--builder multiarch` + `--output type=registry,oci-mediatypes=true`，否则默认生成的 Docker 格式 manifest（`application/vnd.docker.distribution.manifest.v2+json`）不支持顶层 annotations，Harbor 后台「属性总览」将看不到项目信息。
+
+   同时必须加上 `--provenance=false --sbom=false`，否则会生成 OCI index + attestation，annotation 落在内层 manifest 上，Harbor API 顶层 artifact 也读不到。
 
    ```bash
-   docker build --push --provenance=false --sbom=false --annotation "project_name=<项目名称>" --annotation "project_author=<项目作者>" --annotation "project_description=<项目描述>" --annotation "project_name_en=<英文项目名称>" -t reg.saitron.net/<body_username>/<英文项目名称>:<新版本号> {{project_root_dir}}/<英文项目名称>
+   docker buildx build --builder multiarch --push --provenance=false --sbom=false --output type=registry,oci-mediatypes=true --annotation "project_name=<项目名称>" --annotation "project_author=<项目作者>" --annotation "project_description=<项目描述>" --annotation "project_name_en=<英文项目名称>" -t reg.saitron.net/<body_username>/<英文项目名称>:<新版本号> {{project_root_dir}}/<英文项目名称>
    ```
 
-   注意：这里使用 `--annotation`，不要使用 `--label`；`--annotation` 需要配合 `--push` 才能写入，且必须加 `--provenance=false --sbom=false` 保证生成的是单 OCI manifest，这样 Harbor API 顶层 `annotations` 才会展示项目信息。
+   关键参数说明：
+   - `--builder multiarch`：使用支持 OCI 格式的 buildkit builder（v0.31+），避免默认 orbstack docker driver（v0.29） 不输出 OCI manifest。
+   - `--output type=registry,oci-mediatypes=true`：强制输出 OCI 格式 manifest（`application/vnd.oci.image.manifest.v1+json`），annotations 才能出现在顶层。
+   - `--provenance=false --sbom=false`：防止生成 OCI index 包裹层，确保 annotations 落在 Harbor 能直接读取的顶层。
+   - `--annotation`：不要使用 `--label`；`--label` 只写入镜像 config 内部，Harbor 属性总览无法读取。
 
    如果镜像已经构建过且代码未变化，可跳过重复构建，但必须确认镜像已带有上述 annotations。
 

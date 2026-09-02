@@ -192,7 +192,19 @@ printf '%s\n' "$BODY_PASSWORD" | docker login reg.saitron.net -u "$BODY_USERNAME
    ```
    脚本会输出新版本号，例如 `0.1`。
 
-3. 构建并直接推送 Docker 镜像，并把以下项目信息写入 OCI annotation（这样才能通过 Harbor API 在顶层 `annotations` 字段中看到项目信息，与 tangshan-weather 的最终效果一致）：
+3. **构建前环境检查**：执行构建前必须先确认 `docker buildx` 可用，并确保存在兼容的 builder。
+
+   ```bash
+   # 检查 docker buildx 是否可用
+   docker buildx version || { echo "错误：docker buildx 未安装，请参考 https://docs.docker.com/buildx/working-with-buildx/ 安装"; exit 1; }
+
+   # 确保存在兼容 builder（buildkit >= v0.31），不存在则创建
+   docker buildx create --name multiarch --use 2>/dev/null || true
+   ```
+
+   如果 `docker buildx version` 失败，停止推送并告知用户安装 buildx 插件。
+
+4. 构建并直接推送 Docker 镜像，并把以下项目信息写入 OCI annotation（这样才能通过 Harbor API 在顶层 `annotations` 字段中看到项目信息，与 tangshan-weather 的最终效果一致）：
 
    - `project_name`
    - `project_author`
@@ -215,7 +227,7 @@ printf '%s\n' "$BODY_PASSWORD" | docker login reg.saitron.net -u "$BODY_USERNAME
 
    如果镜像已经构建过且代码未变化，可跳过重复构建，但必须确认镜像已带有上述 annotations。
 
-4. `--push` 会直接完成推送，无需再单独执行 `docker push`；镜像名使用与项目目录同名的 `project_name_en`，推送目标示例：
+5. `--push` 会直接完成推送，无需再单独执行 `docker push`；镜像名使用与项目目录同名的 `project_name_en`，推送目标示例：
 
    ```text
    reg.saitron.net/uibp_user/my-app:0.1

@@ -8,7 +8,7 @@
 - **自动生成英文项目名**：根据项目信息自动生成 `project_name_en`，并创建同名目录存放项目所有文件。
 - **推送前检查**：用户要求推送 Docker 镜像到 UIBP 底座时，必须包含 `本体用户名`、`本体密码`；推送路径和英文项目名称默认自动生成，并与项目目录名保持一致。
 - **Docker 登录**：推送前先执行 `docker login reg.saitron.net`。
-- **Docker annotations**：构建镜像时将 `project_name`、`project_author`、`project_description`、`project_name_en` 写入 OCI annotation，便于通过 Harbor API 顶层 `annotations` 字段查看项目信息。
+- **Docker annotations**：构建镜像时将 `project_name`、`project_author`、`project_description`、`project_name_en` 写入 OCI annotation（`docker buildx build --builder multiarch --output type=registry,oci-mediatypes=true`），便于通过 Harbor API 顶层 `annotations` 字段查看项目信息。
 - **本体密码保存询问**：登录成功后询问用户是否保存本体密码，只有用户明确同意才写入状态文件。
 - **版本号强制 +0.1**：每次推送前版本号固定增加 `0.1`，初始版本为 `0.0`，第一次推送为 `0.1`，并作为 Docker TAG。
 - **状态持久化**：项目信息、推送信息和版本号保存在英文项目名称目录内的 `.push-guard-state.json`，即 `<项目根目录>/<英文项目名称>/.push-guard-state.json`。
@@ -17,10 +17,15 @@
 ## 构建与推送规则
 
 ```bash
-# 登录 UIBP 底座镜像仓库
+# 0. 确保 docker buildx 可用 + 兼容 builder 存在
+#    如果 docker buildx version 失败，请先安装：https://docs.docker.com/buildx/working-with-buildx/
+docker buildx version
+docker buildx create --name multiarch --use 2>/dev/null || true
+
+# 1. 登录 UIBP 底座镜像仓库
 docker login reg.saitron.net -u <本体用户名> --password-stdin
 
-# 构建镜像并写入项目信息 annotations（合并成一行）
+# 2. 构建镜像并写入项目信息 annotations（合并成一行）
 # 关键：必须使用 docker buildx build + --builder multiarch + --output type=registry,oci-mediatypes=true
 # 否则默认生成的 Docker 格式 manifest 不支持顶层 annotations，Harbor 后台属性总览看不到项目信息
 # 注意：这里使用 OCI annotation（--annotation），不要使用 --label，Harbor API 顶层 annotations 才能展示项目信息

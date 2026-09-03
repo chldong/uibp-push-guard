@@ -14,256 +14,194 @@ allowed-tools: Bash, Read, Write, Edit
 ## 状态文件
 
 - 默认状态文件路径：`{{project_root_dir}}/<project_name_en>/.push-guard-state.json`
+
+
+- 状态文件结构：
+
+      ```json
+      {
+      "project_name": "",
+      "project_author": "",
+      "project_description": "",
+      "project_name_en": "",
+      "body_username": "",
+      "body_password": "",
+      "push_path": "",
+      "version": "0.0"
+      }
+      ```
+
 - 辅助脚本路径：`{{current_skill_dir_path}}/scripts/guard.py`
 
-状态文件结构：
 
-```json
-{
-  "project_name": "",
-  "project_author": "",
-  "project_description": "",
-  "project_name_en": "",
-  "body_username": "",
-  "body_password": "",
-  "push_path": "",
-  "version": "0.0"
-}
-```
-
-- `project_name_en` 为英文项目名称，用于 Docker 镜像名。
-- `push_path` 为完整 Docker 仓库路径（不含 TAG），例如 `reg.saitron.net/uibp_user/my-app`。
-- `version` 初始值为 `0.0`，表示尚未推送；每次推送前将 `version` 增加 `0.1`，并作为 Docker TAG，例如 `0.0 -> 0.1`、`0.1 -> 0.2`、`1.0 -> 1.1`。
+- `project_name_en`：英文项目名称，用于 Docker 镜像名。
+- `push_path`：完整 Docker 仓库路径（不含 TAG），例如 `reg.saitron.net/uibp_user/my-app`。
+- `version`：初始 `0.0`，每次推送前 `+0.1` 并作为 Docker TAG。
 
 ---
 
 ## 一、新会话开始检查
 
-在收到本会话**第一条用户消息**时，按以下步骤执行：
+在收到本会话**第一条用户消息**时：
 
-1. 从第一条消息中提取以下三个字段：
-   - `项目名称`：项目叫什么。
-   - `项目作者`：作者或负责人是谁。
-   - `项目描述`：项目做什么、目标是什么。
-
-2. 如果三个字段**全部存在且明确**，继续第 3 步；否则先只询问缺失字段：
+1. 提取三个字段：`项目名称`、`项目作者`、`项目描述`。
+2. 若全部存在且明确则继续；否则只询问缺失字段：
    ```
    开始前请先补充以下项目信息：
    1. 项目名称
    2. 项目作者
    3. 项目描述
    ```
-   - 等待用户补齐后继续。
-   - 在补齐前不要执行开发、修改、推送等其他任务。
+   补齐前不执行开发、修改、推送等其他任务。
 
-3. **自动生成英文项目名称** `project_name_en`：
-   - 如果第一条消息中用户已经给出英文项目名称，优先使用用户给出的名称。
-   - 否则根据 `项目名称`、`项目描述` 等内容自动生成，例如使用拼音、英文翻译或简洁英文短语。
-   - 规范化规则：
-     - 只保留小写字母、数字、`-`、`_`、`.`；
-     - 空格统一转为 `-`；
-     - 不能以分隔符开头或结尾；
-     - 例如：`示例项目` 可生成 `demo-project` 或 `example-project`。
-   - 将生成结果告知用户，例如：
-     ```
-     已自动创建英文项目名称：demo-project
-     ```
+3. 自动生成英文项目名称 `project_name_en`：
+   - 用户已给出则优先使用；否则根据项目名称、描述自动生成（拼音、英文翻译或简洁短语）。
+   - 规范化：只保留小写字母、数字、`-`、`_`、`.`；空格转 `-`；不以分隔符开头或结尾。
+   - 告知用户，例如：`已自动创建英文项目名称：demo-project`。
 
-4. **创建项目目录**：
-   - 以 `project_name_en` 为目录名，在项目根目录下创建：
-     ```bash
-     mkdir -p {{project_root_dir}}/<project_name_en>
-     ```
-   - 此后本项目的**所有文件**（代码、配置、文档、`.push-guard-state.json` 等）都必须创建在该目录下。
-   - 如果目录已存在，直接复用，不删除、不覆盖已有内容。
+4. 创建项目目录：
+   ```bash
+   mkdir -p {{project_root_dir}}/<project_name_en>
+   ```
+   此后本项目所有文件（代码、配置、文档、状态文件等）都创建在该目录下；目录已存在则复用，不覆盖。
 
-5. **在项目目录内写入状态文件**：
+5. 写入状态文件：
    ```bash
    python {{current_skill_dir_path}}/scripts/guard.py init --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
-   python {{current_skill_dir_path}}/scripts/guard.py set --key project_name --value "提取到的项目名称" --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
-   python {{current_skill_dir_path}}/scripts/guard.py set --key project_author --value "提取到的项目作者" --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
-   python {{current_skill_dir_path}}/scripts/guard.py set --key project_description --value "提取到的项目描述" --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
+   python {{current_skill_dir_path}}/scripts/guard.py set --key project_name --value "项目名称" --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
+   python {{current_skill_dir_path}}/scripts/guard.py set --key project_author --value "项目作者" --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
+   python {{current_skill_dir_path}}/scripts/guard.py set --key project_description --value "项目描述" --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
    python {{current_skill_dir_path}}/scripts/guard.py set --key project_name_en --value "生成的英文项目名称" --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
    ```
 
-6. 完成上述步骤后，继续执行用户请求，并把项目文件写入 `{{project_root_dir}}/{{project_name_en}}/` 下。
+6. 完成后继续执行用户请求，把项目文件写入 `{{project_root_dir}}/{{project_name_en}}/` 下。
 
 ---
 
-## 二、Docker 推送前检查
+## 二、Dockerfile 镜像源规范（国内环境）
 
-推送目标为 **UIBP 底座**，规则为：
+编写 Dockerfile 时优先使用国内镜像源，保证构建成功率与速度：
 
-```bash
-docker push reg.saitron.net/<本体用户名>/<英文项目名称>[:TAG]
-```
+1. **基础镜像（`FROM`）**：首次编译镜像时优先使用 `docker.m.daocloud.io` 前缀，例如：
+   ```
+   FROM docker.m.daocloud.io/library/python:3.11-slim
+   FROM docker.m.daocloud.io/library/node:20-alpine
+   ```
 
-其中：
-- `本体用户名` 用于 `docker login`。
-- `英文项目名称` 必须与新会话开始时生成的 `project_name_en` 完全一致，并对应项目目录名。
-- `[:TAG]` 为版本号 TAG，由版本号强制 `+0.1` 后自动获得，例如 `0.1`。
+2. **包管理器镜像源**（pip、apt、npm、yum 等）同样切换到国内镜像：
+   - pip：清华 `https://pypi.tuna.tsinghua.edu.cn/simple/` 或阿里云 `https://mirrors.aliyun.com/pypi/simple/`
+   - apt：阿里云 `http://mirrors.aliyun.com/` 或清华 `https://mirrors.tuna.tsinghua.edu.cn/`
+   - npm：阿里云 `https://registry.npmmirror.com`
 
-当用户消息包含明确推送意图时（如：`推送`、`push`、`上传推送`、`发布推送`、`推到...`），按以下步骤执行：
+3. **适用边界**：默认国内环境编译使用上述加速源；海外环境或用户明确要求时可保留默认源。
+
+---
+
+## 三、Docker 推送前检查
+
+推送目标为 **UIBP 底座**：`reg.saitron.net/<本体用户名>/<英文项目名称>[:TAG]`。
+
+当用户消息包含明确推送意图时（如 `推送`、`push`、`上传推送`、`发布推送`、`推到...`），按以下步骤执行：
 
 ### 1. 确认推送要素
 
-必须确认以下字段都齐全：
-
 - `本体用户名`：用于 `docker login`。
 - `本体密码`：用于 `docker login`。
-- `英文项目名称` `project_name_en`：优先从状态文件读取；如果缺失，先补齐项目信息并自动生成。
-- `推送路径`：默认**自动生成**，无需用户额外提供：
+- `英文项目名称` `project_name_en`：优先从状态文件读取；缺失则先补齐并自动生成。
+- `推送路径`：默认自动生成 `reg.saitron.net/<body_username>/<project_name_en>`；用户消息或环境变量 `PUSH_PATH` 提供完整路径时优先使用，但其最后一段必须与 `project_name_en` 一致，不一致时以 `project_name_en` 为准。
 
-  ```
-  push_path = reg.saitron.net/<body_username>/<project_name_en>
-  ```
-
-  如果用户消息或环境变量 `PUSH_PATH` 提供了完整路径，则优先使用该路径，但其最后一段必须与 `project_name_en` 相同；不一致时提醒用户，并以 `project_name_en` 为准。
-
-字段来源优先级：
-
-1. 环境变量：`BODY_USERNAME`、`BODY_PASSWORD`；`PUSH_PATH` 可选覆盖自动生成的路径。
-2. 当前用户消息中明确给出的值。
-3. 状态文件 `{{project_root_dir}}/<project_name_en>/.push-guard-state.json` 中已保存的值。
-4. 自动生成：`push_path = reg.saitron.net/<body_username>/<project_name_en>`。
+字段来源优先级：环境变量（`BODY_USERNAME`、`BODY_PASSWORD`、`PUSH_PATH`）> 当前用户消息 > 状态文件 > 自动生成。
 
 ### 2. 缺失则提问
 
-如果 `本体用户名` 或 `本体密码` 缺失：
-
-- 只询问缺失字段。
-- 例如：
-  ```
-  推送前请先补充以下信息：
-  1. 本体用户名
-  2. 本体密码
-  ```
-- 等待用户补齐后再继续推送流程。
-- 在补齐前**不得执行 `docker login` 或 `docker push`**。
+`本体用户名` 或 `本体密码` 缺失时只询问缺失字段：
+```
+推送前请先补充以下信息：
+1. 本体用户名
+2. 本体密码
+```
+补齐前不得执行 `docker login` 或 `docker push`。
 
 ### 3. 写入自动生成的推送路径
 
-如果状态文件中 `push_path` 为空，执行：
-
+状态文件中 `push_path` 为空时：
 ```bash
 python {{current_skill_dir_path}}/scripts/guard.py set --key push_path --value "reg.saitron.net/实际本体用户名/生成的英文项目名称" --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
 ```
 
 ### 4. 执行 Docker 登录
 
-推送前必须先登录 UIBP 底座镜像仓库：
-
 ```bash
 printf '%s\n' "$BODY_PASSWORD" | docker login reg.saitron.net -u "$BODY_USERNAME" --password-stdin
 ```
-
-- 如果环境变量不可用，则在当前会话中临时使用用户提供的本体用户名和本体密码执行等价命令。
-- 登录成功后再执行镜像推送。
+环境变量不可用时，临时使用用户提供的用户名和密码执行等价命令。登录成功后再推送。
 
 ### 5. 询问是否保存本体密码
 
-`docker login` 成功后，必须询问用户：
-
-```
-是否将本体密码保存到状态文件？
-```
-
-- 用户明确同意后，才写入状态文件：
+登录成功后询问：`是否将本体密码保存到状态文件？`
+- 用户明确同意后才写入状态文件：
   ```bash
   python {{current_skill_dir_path}}/scripts/guard.py set --key body_password --value "用户提供的本体密码" --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
   ```
-- 用户不同意或未明确同意，则本体密码只在当前会话中使用，不落盘。
-- 优先建议用户使用环境变量 `BODY_PASSWORD`，避免明文保存本体密码。
+- 否则只在当前会话使用，不落盘；优先建议使用环境变量 `BODY_PASSWORD`。
 
 ---
 
-## 三、构建镜像 + 版本号 +0.1（强制）
+## 四、构建镜像 + 版本号 +0.1（强制）
 
-每次推送前必须执行版本号递增并构建镜像，规则如下：
+每次推送前必须递增版本号并构建镜像：
 
 1. 确保状态文件存在：
    ```bash
    python {{current_skill_dir_path}}/scripts/guard.py init --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
    ```
 
-2. 递增版本号：
+2. 递增版本号（脚本输出新版本号，如 `0.1`）：
    ```bash
    python {{current_skill_dir_path}}/scripts/guard.py bump-version --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
    ```
-   脚本会输出新版本号，例如 `0.1`。
 
-3. **构建前环境检查**：执行构建前必须先确认 `docker buildx` 可用，并确保存在兼容的 builder。
-
+3. 构建前环境检查：确认 `docker buildx` 可用并存在兼容 builder。
    ```bash
-   # 检查 docker buildx 是否可用
    docker buildx version || { echo "错误：docker buildx 未安装，请参考 https://docs.docker.com/buildx/working-with-buildx/ 安装"; exit 1; }
-
-   # 确保存在兼容 builder（buildkit >= v0.31），不存在则创建
    docker buildx create --name multiarch --use 2>/dev/null || true
    ```
+   `docker buildx version` 失败则停止推送并告知安装 buildx。
 
-   如果 `docker buildx version` 失败，停止推送并告知用户安装 buildx 插件。
-
-4. 构建并直接推送 Docker 镜像，并把以下项目信息写入 OCI annotation（这样才能通过 Harbor API 在顶层 `annotations` 字段中看到项目信息，与 tangshan-weather 的最终效果一致）：
-
-   - `project_name`
-   - `project_author`
-   - `project_description`
-   - `project_name_en`
-
-   必须使用 `docker buildx build` 并指定 `--builder multiarch` + `--output type=registry,oci-mediatypes=true`，否则默认生成的 Docker 格式 manifest（`application/vnd.docker.distribution.manifest.v2+json`）不支持顶层 annotations，Harbor 后台「属性总览」将看不到项目信息。
-
-   同时必须加上 `--provenance=false --sbom=false`，否则会生成 OCI index + attestation，annotation 落在内层 manifest 上，Harbor API 顶层 artifact 也读不到。
-
+4. 构建并直接推送，把 `project_name`、`project_author`、`project_description`、`project_name_en` 写入 OCI annotation：
    ```bash
    docker buildx build --builder multiarch --push --provenance=false --sbom=false --output type=registry,oci-mediatypes=true --annotation "project_name=<项目名称>" --annotation "project_author=<项目作者>" --annotation "project_description=<项目描述>" --annotation "project_name_en=<英文项目名称>" -t reg.saitron.net/<body_username>/<英文项目名称>:<新版本号> {{project_root_dir}}/<英文项目名称>
    ```
+   关键参数：
+   - `--builder multiarch`：使用支持 OCI 的 buildkit builder（v0.31+），避免默认 driver 不输出 OCI manifest。
+   - `--output type=registry,oci-mediatypes=true`：强制输出 OCI manifest，annotations 才能出现在顶层。
+   - `--provenance=false --sbom=false`：防止生成 OCI index 包裹层，确保 annotations 落在 Harbor 可读取的顶层。
+   - `--annotation`（不要用 `--label`）：`--label` 只写入镜像 config 内部，Harbor 属性总览无法读取。
 
-   关键参数说明：
-   - `--builder multiarch`：使用支持 OCI 格式的 buildkit builder（v0.31+），避免默认 orbstack docker driver（v0.29） 不输出 OCI manifest。
-   - `--output type=registry,oci-mediatypes=true`：强制输出 OCI 格式 manifest（`application/vnd.oci.image.manifest.v1+json`），annotations 才能出现在顶层。
-   - `--provenance=false --sbom=false`：防止生成 OCI index 包裹层，确保 annotations 落在 Harbor 能直接读取的顶层。
-   - `--annotation`：不要使用 `--label`；`--label` 只写入镜像 config 内部，Harbor 属性总览无法读取。
+   已构建过且代码未变化可跳过重复构建，但需确认镜像已带上述 annotations。
 
-   如果镜像已经构建过且代码未变化，可跳过重复构建，但必须确认镜像已带有上述 annotations。
+5. `--push` 直接完成推送，无需单独 `docker push`；目标示例 `reg.saitron.net/uibp_user/my-app:0.1`。
 
-5. `--push` 会直接完成推送，无需再单独执行 `docker push`；镜像名使用与项目目录同名的 `project_name_en`，推送目标示例：
-
-   ```text
-   reg.saitron.net/uibp_user/my-app:0.1
-   ```
-
-6. 在推送说明中明确包含新版本号。
-
-7. 步长固定为 `0.1`，不得跳号或使用其他步长；TAG 直接使用新版本号，不加 `v` 前缀。
+6. 推送说明中明确包含新版本号；步长固定 `0.1`，TAG 不加 `v` 前缀。
 
 ---
 
-## 四、辅助脚本命令
+## 五、辅助脚本命令
 
 ```bash
 # 初始化状态文件（已存在则补全默认字段）
 python {{current_skill_dir_path}}/scripts/guard.py init --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
 
-# 写入某个字段
+# 写入字段
 python {{current_skill_dir_path}}/scripts/guard.py set --key project_name --value "示例项目" --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
 
-# 读取某个字段
+# 读取字段
 python {{current_skill_dir_path}}/scripts/guard.py get --key version --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
 
-# 检查当前状态文件还缺哪些字段
+# 检查缺失字段
 python {{current_skill_dir_path}}/scripts/guard.py missing --scope session --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
 python {{current_skill_dir_path}}/scripts/guard.py missing --scope push --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
 
-# 查看完整状态（本体密码会脱敏显示）
+# 查看完整状态（本体密码脱敏）
 python {{current_skill_dir_path}}/scripts/guard.py show --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
 ```
-
----
-
-## 五、执行原则
-
-1. **先补齐，后执行**：任何强制信息缺失时，先提问并等待，不执行用户请求的主体任务。
-2. **只问缺失项**：用户已经提供的信息不要重复询问。
-3. **版本号不可跳过**：每次推送都必须先完成 `+0.1` 并留下记录。
-4. **安全优先**：本体密码默认不落盘，优先使用环境变量；`docker login` 成功后必须询问用户是否保存本体密码，用户明确同意后才写入状态文件。

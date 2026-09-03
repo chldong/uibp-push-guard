@@ -233,9 +233,9 @@ printf '%s\n' "$BODY_PASSWORD" | docker login reg.saitron.net -u "$BODY_USERNAME
    reg.saitron.net/uibp_user/my-app:0.1
    ```
 
-5. 在推送说明中明确包含新版本号。
+6. 在推送说明中明确包含新版本号。
 
-6. 步长固定为 `0.1`，不得跳号或使用其他步长；TAG 直接使用新版本号，不加 `v` 前缀。
+7. 步长固定为 `0.1`，不得跳号或使用其他步长；TAG 直接使用新版本号，不加 `v` 前缀。
 
 ---
 

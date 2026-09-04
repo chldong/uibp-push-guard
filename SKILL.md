@@ -161,28 +161,40 @@ printf '%s\n' "$BODY_PASSWORD" | docker login reg.saitron.net -u "$BODY_USERNAME
    python {{current_skill_dir_path}}/scripts/guard.py bump-version --state {{project_root_dir}}/<project_name_en>/.push-guard-state.json
    ```
 
-3. 构建前环境检查：确认 `docker buildx` 可用并存在兼容 builder。
+3. 构建前环境检查：确认 `docker buildx` 可用。
    ```bash
    docker buildx version || { echo "错误：docker buildx 未安装，请参考 https://docs.docker.com/buildx/working-with-buildx/ 安装"; exit 1; }
-   docker buildx create --name multiarch --use 2>/dev/null || true
    ```
    `docker buildx version` 失败则停止推送并告知安装 buildx。
 
-4. 构建并直接推送，把 `project_name`、`project_author`、`project_description`、`project_name_en` 写入 OCI annotation：
+   **注意**：不需要创建 `docker-container` driver（`docker buildx create`），默认的 `docker` driver 就支持 `--annotation` + `--output type=registry,oci-mediatypes=true`。`docker-container` driver 反而需要额外拉取 `moby/buildkit` 镜像，在国内环境容易因网络问题卡住。
+
+4. 构建并直接推送，把 `project_name`、`project_author`、`project_description`、`project_name_en` 写入 OCI annotation 首层：
    ```bash
-   docker buildx build --builder multiarch --push --provenance=false --sbom=false --output type=registry,oci-mediatypes=true --annotation "project_name=<项目名称>" --annotation "project_author=<项目作者>" --annotation "project_description=<项目描述>" --annotation "project_name_en=<英文项目名称>" -t reg.saitron.net/<body_username>/<英文项目名称>:<新版本号> {{project_root_dir}}/<英文项目名称>
+   docker buildx build --push --provenance=false --sbom=false --output type=registry,oci-mediatypes=true --annotation "project_name=<项目名称>" --annotation "project_author=<项目作者>" --annotation "project_description=<项目描述>" --annotation "project_name_en=<英文项目名称>" -t reg.saitron.net/<body_username>/<英文项目名称>:<新版本号> {{project_root_dir}}/<英文项目名称>
    ```
    关键参数：
-   - `--builder multiarch`：使用支持 OCI 的 buildkit builder（v0.31+），避免默认 driver 不输出 OCI manifest。
-   - `--output type=registry,oci-mediatypes=true`：强制输出 OCI manifest，annotations 才能出现在顶层。
+   - `--annotation`：将项目信息写入 OCI manifest **首层**（顶层），Harbor 属性总览可直接读取。
+   - `--output type=registry,oci-mediatypes=true`：强制输出 OCI 格式 manifest（`application/vnd.oci.image.manifest.v1+json`），annotations 才能出现在首层。
    - `--provenance=false --sbom=false`：防止生成 OCI index 包裹层，确保 annotations 落在 Harbor 可读取的顶层。
-   - `--annotation`（不要用 `--label`）：`--label` 只写入镜像 config 内部，Harbor 属性总览无法读取。
+   - **不要用 `--label`**：`--label` 只写入镜像 config 内部（`docker build` 不支持 `--annotation`），Harbor 属性总览无法读取。
+
+   | 方式 | 命令 | 标签类型 | 位置 | Harbor 可读 |
+   |------|------|----------|------|-------------|
+   | `docker build` | `--label` | Label | config 内部 | ❌ |
+   | `docker buildx build` | `--annotation` | Annotation | manifest **首层** | ✅ |
 
    已构建过且代码未变化可跳过重复构建，但需确认镜像已带上述 annotations。
 
 5. `--push` 直接完成推送，无需单独 `docker push`；目标示例 `reg.saitron.net/uibp_user/my-app:0.1`。
 
 6. 推送说明中明确包含新版本号；步长固定 `0.1`，TAG 不加 `v` 前缀。
+
+7. 推送成功后验证 annotations 是否在首层：
+   ```bash
+   docker buildx imagetools inspect reg.saitron.net/<body_username>/<英文项目名称>:<新版本号> --raw
+   ```
+   确认输出中 `mediaType` 为 `application/vnd.oci.image.manifest.v1+json`，且顶层 `annotations` 包含四个项目字段。
 
 ---
 
